@@ -6,103 +6,101 @@ from geopy.geocoders import Nominatim
 import requests
 import time
 
-# --- CONFIGURATION ---
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXv6-bYGpE2J4FCXwdDSoRDNl7UhseCyaURUhIEnF-ZkI12GS7UD0pM4UQIoe96EJPJJavGnCuAWbI/pub?output=csv" # <--- Ensure it ends in output=csv
+# --- 1. COORDINATE BANK (Instant Load) ---
+# We store these here so the app doesn't have to "find" them every time.
+COORD_BANK = {
+    "Trivandrum": [8.5241, 76.9366],
+    "Bangalore": [12.9716, 77.5946],
+    "Hyderabad": [17.3850, 78.4867],
+    "Nagpur": [21.1458, 79.0882],
+    "Kota": [25.2138, 75.8648],
+    "Jaipur": [26.9124, 75.7873],
+    "Amritsar": [31.6340, 74.8723],
+    "Srinagar": [34.0837, 74.7973],
+    "Kargil": [34.5539, 76.1349],
+    "Leh": [34.1526, 77.5771],
+    "Nubra": [34.6863, 77.5673],
+    "Pangong": [33.7595, 78.6674],
+    "Jispa": [32.6415, 77.1892],
+    "Manali": [32.2432, 77.1892],
+    "Shimla": [31.1048, 77.1734],
+    "Agra": [27.1767, 78.0081],
+    "Jhansi": [25.4484, 78.5685]
+}
 
-st.set_page_config(layout="wide", page_title="K2K 2026", initial_sidebar_state="collapsed")
+CSV_URL = "PASTE_YOUR_LINK_HERE"
 
-st.markdown("""
-    <style>
-    iframe {width: 100% !important; height: 70vh !important;}
-    .main > div {padding: 0rem;}
-    .stButton>button {width: 100%; border-radius: 20px; background-color: #FF4B4B; color: white;}
-    </style>
-    """, unsafe_allow_html=True)
+st.set_page_config(layout="wide", page_title="K2K 2026")
+
+def get_coords(city):
+    """Checks the bank first, then the sheet, then the internet."""
+    # 1. Check Hardcoded Bank
+    if city in COORD_BANK:
+        return COORD_BANK[city]
+    
+    # 2. If not found, use Geocoder (1 second delay)
+    try:
+        geolocator = Nominatim(user_agent="k2k_final_nav")
+        time.sleep(1)
+        loc = geolocator.geocode(f"{city}, India")
+        if loc:
+            return [loc.latitude, loc.longitude]
+    except:
+        return None
+
+# --- APP LOGIC ---
+st.title("🏔️ K2K 2026: Fast Map")
 
 @st.cache_data(ttl=300)
 def load_data(url):
-    try:
-        df = pd.read_csv(url)
-        df.columns = [str(c).strip() for c in df.columns]
-        return df
-    except: return None
+    df = pd.read_csv(url)
+    df.columns = [str(c).strip() for c in df.columns]
+    return df
 
-def get_road_path(p1, p2):
-    """Fetches the real highway path between two points"""
-    url = f"http://router.project-osrm.org/route/v1/driving/{p1[1]},{p1[0]};{p2[1]},{p2[0]}?overview=full&geometries=geojson"
-    try:
-        r = requests.get(url, timeout=5).json()
-        return [(p[1], p[0]) for p in r['routes'][0]['geometry']['coordinates']]
-    except: return [p1, p2] # Fallback to straight line
-
-@st.cache_data
-def get_all_coords(cities):
-    geolocator = Nominatim(user_agent="k2k_final_navigator")
-    coords = {}
-    for city in cities:
-        clean_name = str(city).split('/')[0].strip()
-        try:
-            time.sleep(1) 
-            loc = geolocator.geocode(f"{clean_name}, India")
-            if loc: coords[city] = [loc.latitude, loc.longitude]
-        except: continue
-    return coords
-
-# --- MAIN APP ---
 df = load_data(CSV_URL)
 
 if df is not None and 'From' in df.columns:
-    st.title("🏔️ K2K 2026: Trivandrum to Ladakh")
-    
-    if st.button("🔄 Refresh Data from Sheet"):
-        st.cache_data.clear()
-        st.rerun()
-
-    unique_cities = pd.concat([df['From'], df['To']]).unique()
-    
-    with st.status("🗺️ Building your route... (Takes ~30 seconds)", expanded=False) as status:
-        coords_dict = get_all_coords(unique_cities)
-        status.update(label="✅ Map Ready!", state="complete")
-
-    # Create Map centered on India
+    # Check if we have saved coordinates in the sheet already
     m = folium.Map(location=[20.5, 78.9], zoom_start=5, tiles="CartoDB positron")
-
     all_points = []
-    for _, row in df.iterrows():
-        f, t = row['From'], row['To']
-        if f in coords_dict and t in coords_dict:
-            p1, p2 = coords_dict[f], coords_dict[t]
-            all_points.extend([p1, p2])
+    
+    # Pre-calculate all coordinates
+    with st.spinner("Loading Route..."):
+        for _, row in df.iterrows():
+            f_city = str(row['From']).split('/')[0].strip()
+            t_city = str(row['To']).split('/')[0].strip()
             
-            # 1. Real Road Lines
-            path = get_road_path(p1, p2)
-            folium.PolyLine(path, color="#E74C3C", weight=4, opacity=0.8).add_to(m)
+            # Get Lat/Lon
+            p1 = get_coords(f_city)
+            p2 = get_coords(t_city)
             
-            # 2. Simplified Circle Markers (Way more reliable on mobile)
-            folium.CircleMarker(
-                location=p2,
-                radius=6,
-                color="white",
-                fill=True,
-                fill_color="#2E86C1",
-                fill_opacity=1,
-                popup=f"<b>Day {row['SL']}</b>: {t}<br>Stay: {row.get('Night Stay', 'N/A')}"
-            ).add_to(m)
+            if p1 and p2:
+                all_points.extend([p1, p2])
+                folium.PolyLine([p1, p2], color="#E74C3C", weight=4).add_to(m)
+                folium.CircleMarker(location=p2, radius=5, color="#2E86C1", fill=True).add_to(m)
 
-    # Auto-zoom to fit the entire route
     if all_points:
         m.fit_bounds(all_points)
-
+    
     st_folium(m, use_container_width=True)
 
-    # 3. Mobile-friendly Logs
-    for _, row in df.iterrows():
-        with st.expander(f"Day {row['SL']}: {row['From']} ➔ {row['To']}"):
-            col1, col2 = st.columns(2)
-            col1.metric("Distance", f"{row.get('Distance', '0')} km")
-            col2.metric("Time", row.get('Drive Time', 'N/A'))
-            st.write(f"🏨 **Stay:** {row.get('Night Stay', 'N/A')}")
-            st.info(f"📝 **Notes:** {row.get('Notes', 'None')}")
+    # --- THE "HIDDEN DATA" TOOL ---
+    with st.expander("🛠️ Admin: Export Coordinates to Google Sheet"):
+        st.write("If you want the app to be even faster, copy these into your Sheet's Lat/Lon columns:")
+        export_data = []
+        for _, row in df.iterrows():
+            f_city = str(row['From']).split('/')[0].strip()
+            t_city = str(row['To']).split('/')[0].strip()
+            p1 = get_coords(f_city)
+            p2 = get_coords(t_city)
+            export_data.append({
+                "Day": row['SL'],
+                "Start_Lat": p1[0] if p1 else "",
+                "Start_Lon": p1[1] if p1 else "",
+                "End_Lat": p2[0] if p2 else "",
+                "End_Lon": p2[1] if p2 else ""
+            })
+        st.dataframe(pd.DataFrame(export_data))
 
 else:
-    st.error("Checking CSV structure...")
+    st.error("Sheet not found or headers mismatch.")
