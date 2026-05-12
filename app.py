@@ -8,7 +8,7 @@ import requests
 
 # --- SETTINGS ---
 # Replace this with your actual Published CSV link
-CSV_URL = "PASTE_YOUR_CSV_URL_HERE"
+CSV_URL = "https://docs.google.com/spreadsheets/d/1EzJ4cRVo-qj0ciKSfd1dWFLKh3zzH60HMDWh9GDmtJY/edit?gid=327253181#gid=327253181"
 
 st.set_page_config(layout="wide", page_title="Ladakh 2026 Map", initial_sidebar_state="collapsed")
 
