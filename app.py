@@ -28,7 +28,7 @@ COORD_BANK = {
     "Jhansi": [25.4484, 78.5685]
 }
 
-CSV_URL = "PASTE_YOUR_LINK_HERE"
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXv6-bYGpE2J4FCXwdDSoRDNl7UhseCyaURUhIEnF-ZkI12GS7UD0pM4UQIoe96EJPJJavGnCuAWbI/pub?output=csv"
 
 st.set_page_config(layout="wide", page_title="K2K 2026")
 
