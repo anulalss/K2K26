@@ -2,13 +2,14 @@ import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
-from folium.plugins import Locater, MousePosition, Fullscreen
+# FIXED: Changed Locater to LocateControl
+from folium.plugins import LocateControl, MousePosition, Fullscreen
 from geopy.geocoders import Nominatim
 import requests
 import time
 
 # --- 1. CONFIG ---
-CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXv6-bYGpE2J4FCXwdDSoRDNl7UhseCyaURUhIEnF-ZkI12GS7UD0pM4UQIoe96EJPJJavGnCuAWbI/pub?output=csv"
+https://docs.google.com/spreadsheets/d/e/2PACX-1vRXv6-bYGpE2J4FCXwdDSoRDNl7UhseCyaURUhIEnF-ZkI12GS7UD0pM4UQIoe96EJPJJavGnCuAWbI/pub?output=csv
 
 st.set_page_config(layout="wide", page_title="K2K 2026 Explorer", initial_sidebar_state="collapsed")
 
@@ -34,7 +35,7 @@ def load_data(url):
 
 @st.cache_data
 def get_coords(city):
-    geolocator = Nominatim(user_agent="k2k_final_pro")
+    geolocator = Nominatim(user_agent="k2k_final_pro_v2")
     clean = str(city).split('/')[0].strip()
     try:
         time.sleep(1.2)
@@ -74,15 +75,17 @@ if df is not None:
             if c: coords_dict[city] = c
         status.update(label="✅ Systems Online", state="complete")
 
-    # BASE MAPS: Added Terrain and Satellite for better navigation
+    # BASE MAPS
     m = folium.Map(location=[20.5, 78.9], zoom_start=5, tiles=None)
     folium.TileLayer('OpenStreetMap', name='Standard Map').add_to(m)
     folium.TileLayer('https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}', name='Terrain (Mountains)', attr='Google').add_to(m)
     folium.TileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', name='Satellite (Real View)', attr='Google').add_to(m)
 
     # ADD PLUGINS
-    Locater(auto_start=False).add_to(m) # THE "WHERE AM I" BUTTON
+    # FIXED: Using LocateControl instead of Locater
+    LocateControl(auto_start=False).add_to(m) 
     Fullscreen().add_to(m)
+    MousePosition().add_to(m) # Shows coordinates of your cursor
     folium.LayerControl().add_to(m)
 
     stop_groups = df.groupby('To')
@@ -95,11 +98,14 @@ if df is not None:
             
             popup_html = f'<div class="popup-scroll"><b>📍 {city_name}</b><hr>'
             for _, row in group.iterrows():
+                # Add "Via" and "Key Stops" logic
+                via_route = row.get('Via / Route', 'Direct')
                 k_stops = f"❤️ {row.get('Key Stops', 'N/A')}" if str(row.get('Key Stops', '')) != 'nan' else 'N/A'
+                
                 popup_html += f"""
                 <div style="margin-bottom:10px; border-bottom:1px solid #eee;">
                 <b>Day {row['SL']}</b> | {row.get('Date','')} <br>
-                <b>Via:</b> {row.get('Via / Route', 'Direct')}<br>
+                <b>Via:</b> {via_route}<br>
                 <b>Stops:</b> {k_stops}<br>
                 <b>Stay:</b> {row.get('Night Stay','N/A')}<br>
                 <small><i>{row.get('Notes','')}</i></small>
@@ -127,7 +133,6 @@ if df is not None:
             folium.PolyLine(path, color="#E74C3C", weight=5, opacity=0.7).add_to(m)
 
     if all_points:
-        # If searching, zoom to that city; else show whole route
         if search_query != "---" and search_query in coords_dict:
             m.location = coords_dict[search_query]
             m.zoom_start = 12
@@ -138,9 +143,9 @@ if df is not None:
 
     # QUICK STATS
     c1, c2, c3 = st.columns(3)
-    c1.metric("Current Leg", f"{df.iloc[0]['From']} ➔ {df.iloc[-1]['To']}")
+    c1.metric("Trip", f"{df.iloc[0]['From']} ➔ {df.iloc[-1]['To']}")
     c2.metric("Total Days", len(df))
-    c3.metric("Map Status", "Cached" if st.session_state.get('coords') else "Live")
+    c3.metric("Status", "Connected")
 
 else:
     st.info("👋 Welcome! Paste your link to see the map.")
