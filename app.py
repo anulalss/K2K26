@@ -8,7 +8,7 @@ import time
 
 # --- SETTINGS ---
 # 1. MAKE SURE THIS LINK IS UPDATED!
-CSV_URL = "https://docs.google.com/spreadsheets/d/1EzJ4cRVo-qj0ciKSfd1dWFLKh3zzH60HMDWh9GDmtJY/edit?gid=327253181#gid=327253181"
+CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRXv6-bYGpE2J4FCXwdDSoRDNl7UhseCyaURUhIEnF-ZkI12GS7UD0pM4UQIoe96EJPJJavGnCuAWbI/pub?output=csv"
 
 st.set_page_config(layout="wide", page_title="K2K 2026", initial_sidebar_state="collapsed")
 
